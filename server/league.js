@@ -78,11 +78,12 @@ class League extends EventEmitter {
     this.now = now;
     this.rng = rng;
     this.s = store ? store.load() : null;
+    if (this.s && !this.exists()) this.s = null; // a save from an unfinished setup: start fresh
     if (this.s) this.syncPlayers();
   }
 
   // ------------------------------------------------------------------ basics
-  exists() { return !!this.s; }
+  exists() { return !!(this.s && this.s.teams && this.s.teams.length && this.s.commissioner); }
   save() { if (this.store) this.store.save(this.s); }
   saveNow() { if (this.store) this.store.saveNow(this.s); }
   changed(kind) { this.save(); this.emit('update', { kind }); }
@@ -147,7 +148,7 @@ class League extends EventEmitter {
   }
 
   setup(input) {
-    if (this.s) fail('A league already exists on this server', 409);
+    if (this.exists()) fail('A league already exists on this server', 409);
     const settings = { ...DEFAULT_SETTINGS };
     for (const [k, v] of Object.entries(input.settings || {})) {
       if (k in settings) settings[k] = typeof DEFAULT_SETTINGS[k] === 'boolean' ? !!v : Number(v);
@@ -164,15 +165,19 @@ class League extends EventEmitter {
     if (this.pool.size < settings.numTeams * settings.rosterSize + 10) fail('Not enough players in the pool for that many teams');
     const pw = String(input.password || '');
     if (pw.length < 4) fail('Password needs at least 4 characters');
+    // Validate everything before touching state, so a rejected form never leaves a half-made league.
+    const leagueName = this.cleanName(input.leagueName || 'Fantasy Hoops League', 40);
+    const teamName = this.cleanName(input.teamName);
+    const ownerName = this.cleanName(input.ownerName, 24);
     this.s = {
-      version: 1, createdAt: this.now(), name: this.cleanName(input.leagueName || 'Fantasy Hoops League', 40),
+      version: 1, createdAt: this.now(), name: leagueName,
       inviteCode: this.secure.randomHex(3).toUpperCase(), commissioner: null, settings,
       phase: 'lobby', teams: [], players: {}, draft: null, schedule: [], round: 0, days: [], results: {},
       playoffs: null, champion: null, nextTickAt: null, paused: false, trades: [], transactions: [],
       notifications: {}, news: [], sessions: {}, seq: 1, season: 1,
     };
     this.syncPlayers();
-    const me = this.newTeam(this.cleanName(input.teamName), this.cleanName(input.ownerName, 24), 'human');
+    const me = this.newTeam(teamName, ownerName, 'human');
     me.pass = this.hashPassword(pw);
     this.s.commissioner = me.id;
     for (let i = 1; i < settings.humanSlots; i++) this.newTeam(`Open Slot ${i}`, '', 'open');
@@ -196,7 +201,7 @@ class League extends EventEmitter {
   }
 
   join(input) {
-    if (!this.s) fail('No league yet', 404);
+    if (!this.exists()) fail('No league yet', 404);
     if (String(input.inviteCode || '').trim().toUpperCase() !== this.s.inviteCode) fail('Wrong invite code', 403);
     const slot = this.s.teams.find((t) => t.kind === 'open');
     if (!slot) fail('League is full', 409);
@@ -219,7 +224,7 @@ class League extends EventEmitter {
   }
 
   login(input) {
-    if (!this.s) fail('No league yet', 404);
+    if (!this.exists()) fail('No league yet', 404);
     const who = String(input.name || '').trim().toLowerCase();
     const t = this.s.teams.find((x) => x.kind === 'human' && (x.owner.toLowerCase() === who || x.name.toLowerCase() === who));
     if (!t || !this.checkPassword(input.password, t.pass)) fail('Wrong name or password', 401);
@@ -251,7 +256,7 @@ class League extends EventEmitter {
 
   summary(viewer) {
     const s = this.s;
-    if (!s) return { exists: false };
+    if (!this.exists()) return { exists: false };
     return {
       exists: true, name: s.name, phase: s.phase, season: s.season, settings: s.settings,
       inviteCode: viewer ? s.inviteCode : undefined,

@@ -289,7 +289,9 @@
             <button class="btn blue" type="submit">Log in</button>
           </form>
         </div>
-      </div></div>`);
+      </div>
+      ${LOCAL ? '<p class="center muted small" style="margin-top:24px">Forgot a password, or want a brand-new league? <button class="btn sm" data-act="eraseLeague">Start over on this device</button></p>' : ''}
+      </div>`);
   }
 
   function formData(f) {
@@ -939,8 +941,19 @@
       for (const k of ['numTeams', 'humanSlots', 'seasonGames', 'tickMinutes', 'pickSeconds', 'rosterSize', 'playoffTeams', 'seriesLength', 'tradeDeadline']) settings[k] = Number(d[k]);
       settings.injuries = d.injuries;
       settings.maxRoster = Math.max(settings.rosterSize + 2, 15);
-      const r = await act(() => api('POST', '/api/setup', { leagueName: d.leagueName, teamName: d.teamName, ownerName: d.ownerName, password: d.password, settings }));
-      if (r) { S.token = r.token; localStorage.setItem('fh_token', r.token); S.league = null; location.hash = '#/'; render(); }
+      let r;
+      try {
+        r = await api('POST', '/api/setup', { leagueName: d.leagueName, teamName: d.teamName, ownerName: d.ownerName, password: d.password, settings });
+      } catch (e) {
+        if (/already exists/.test(e.message)) {
+          // Someone (or an earlier tap) already created it — show the join / log in screen instead.
+          toast('This league is already set up — log in or join below.');
+          S.league = null;
+          return render();
+        }
+        return showError(e);
+      }
+      S.token = r.token; localStorage.setItem('fh_token', r.token); S.league = null; location.hash = '#/'; render();
     },
     join: async (f) => {
       const r = await act(() => api('POST', '/api/join', formData(f)));
@@ -992,7 +1005,14 @@
     const f = e.target;
     if (!f.dataset.form) return;
     e.preventDefault();
-    FORMS[f.dataset.form](f).catch(showError);
+    if (f.dataset.busy) return; // ignore double taps while the first submit is running
+    f.dataset.busy = '1';
+    const btn = f.querySelector('button[type=submit]');
+    if (btn) btn.disabled = true;
+    FORMS[f.dataset.form](f).catch(showError).finally(() => {
+      delete f.dataset.busy;
+      if (btn) btn.disabled = false;
+    });
   });
 
   setInterval(() => {
