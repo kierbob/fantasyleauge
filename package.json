@@ -1,0 +1,16 @@
+{
+  "name": "fantasy-hoops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Head-to-head fantasy basketball with real NBA players and a possession-by-possession game simulator.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test",
+    "import-stats": "node scripts/import-stats.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
