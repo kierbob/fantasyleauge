@@ -1,0 +1,16 @@
+{
+  "name": "Fantasy Hoops",
+  "short_name": "Hoops",
+  "description": "Draft real NBA players against your friends and play a simulated 82-game season.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111315",
+  "theme_color": "#111315",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

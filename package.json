@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test",
-    "import-stats": "node scripts/import-stats.js"
+    "build:pages": "node scripts/build-pages.js",
+    "import-stats": "node scripts/import-stats.js",
+    "icons": "node scripts/make-icons.js"
   },
   "engines": {
     "node": ">=18"

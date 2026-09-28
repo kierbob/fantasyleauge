@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=86ae162bdf73">
 </head>
 <body>
   <header class="topbar">
@@ -27,7 +27,15 @@
   <div id="notif-panel" class="notif-panel hidden"></div>
   <div id="toasts" class="toasts"></div>
   <div id="modal" class="modal hidden"></div>
-  <!-- local-runtime -->
-  <script src="app.js"></script>
+  <script src="core.js?v=86ae162bdf73"></script>
+  <script src="local.js?v=86ae162bdf73"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      var hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+      navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) location.reload(); });
+    }
+  </script>
+  <script src="app.js?v=86ae162bdf73"></script>
 </body>
 </html>

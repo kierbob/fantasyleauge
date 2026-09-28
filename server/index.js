@@ -7,9 +7,10 @@ const { URL } = require('url');
 const { loadPlayers, buildPool } = require('./players');
 const { Store } = require('./store');
 const { League, LeagueError } = require('./league');
+const { routes, dispatch } = require('./routes');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.json': 'application/json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
 
 function createServer({ dataDir, playersCsv } = {}) {
   const pool = buildPool(loadPlayers(playersCsv));
@@ -46,36 +47,7 @@ function createServer({ dataDir, playersCsv } = {}) {
     return url.searchParams.get('token');
   };
 
-  // [method, pattern, handler(ctx), needsAuth]
-  const routes = [
-    ['GET', /^\/api\/league$/, (c) => league.summary(c.me)],
-    ['POST', /^\/api\/setup$/, (c) => league.setup(c.body)],
-    ['POST', /^\/api\/join$/, (c) => league.join(c.body)],
-    ['POST', /^\/api\/login$/, (c) => league.login(c.body)],
-    ['POST', /^\/api\/logout$/, (c) => { league.logout(c.token); return { ok: true }; }, true],
-    ['GET', /^\/api\/players$/, () => league.playersView(), true],
-    ['GET', /^\/api\/players\/([\w-]+)$/, (c) => league.playerDetail(c.m[1]), true],
-    ['GET', /^\/api\/teams\/(\w+)$/, (c) => league.teamView(c.m[1], c.me), true],
-    ['PUT', /^\/api\/lineup$/, (c) => league.setLineup(c.me, c.body), true],
-    ['PUT', /^\/api\/matchups\/(\w+)$/, (c) => league.setMatchups(c.me, c.m[1], c.body), true],
-    ['POST', /^\/api\/draft\/start$/, (c) => { league.startDraft(c.me); return { ok: true }; }, true],
-    ['POST', /^\/api\/draft\/pick$/, (c) => { league.draftPick(c.me, c.body.pid); return { ok: true }; }, true],
-    ['POST', /^\/api\/draft\/autodraft$/, (c) => { league.setAutodraft(c.me, c.body.on); return { ok: true }; }, true],
-    ['GET', /^\/api\/schedule$/, () => league.scheduleView(), true],
-    ['GET', /^\/api\/games\/([\w-]+)$/, (c) => league.gameView(c.m[1]), true],
-    ['GET', /^\/api\/trades$/, (c) => league.tradesView(c.me), true],
-    ['POST', /^\/api\/trades$/, (c) => league.proposeTrade(c.me, c.body), true],
-    ['POST', /^\/api\/trades\/(\w+)\/(accept|reject|cancel)$/, (c) => league.respondTrade(c.me, c.m[1], c.m[2]), true],
-    ['POST', /^\/api\/fa\/add$/, (c) => { league.addFreeAgent(c.me, c.body.pid, c.body.drop); return { ok: true }; }, true],
-    ['POST', /^\/api\/fa\/drop$/, (c) => { league.dropPlayer(c.me, c.body.pid); return { ok: true }; }, true],
-    ['GET', /^\/api\/notifications$/, (c) => league.notificationsView(c.me), true],
-    ['POST', /^\/api\/notifications\/read$/, (c) => { league.markRead(c.me); return { ok: true }; }, true],
-    ['GET', /^\/api\/news$/, () => ({ news: league.s.news, transactions: league.s.transactions }), true],
-    ['POST', /^\/api\/commish\/sim$/, (c) => ({ played: league.simNow(c.me, c.body.n) }), true],
-    ['POST', /^\/api\/commish\/pause$/, (c) => { league.setPaused(c.me, c.body.paused); return { ok: true }; }, true],
-    ['POST', /^\/api\/commish\/settings$/, (c) => { league.updateSettings(c.me, c.body); return { ok: true }; }, true],
-    ['POST', /^\/api\/commish\/newseason$/, (c) => { league.newSeason(c.me); return { ok: true }; }, true],
-  ];
+  const table = routes(league);
 
   function serveStatic(req, res, pathname) {
     let file = path.normalize(path.join(PUBLIC, pathname === '/' ? 'index.html' : pathname));
@@ -105,16 +77,9 @@ function createServer({ dataDir, playersCsv } = {}) {
       const token = tokenOf(req, url);
       const me = league.sessionTeam(token);
       if (pathname === '/api/events') return openEvents(req, res, me);
-      for (const [method, re, handler, auth] of routes) {
-        const m = pathname.match(re);
-        if (!m || method !== req.method) continue;
-        if (auth && !league.exists()) throw new LeagueError('No league yet', 404);
-        if (auth && !me) throw new LeagueError('Please log in', 401);
-        const body = req.method === 'GET' ? {} : await readBody(req);
-        const out = handler({ req, url, m, me, body, token });
-        return send(req, res, 200, out === undefined ? { ok: true } : out);
-      }
-      throw new LeagueError('Not found', 404);
+      const body = req.method === 'GET' ? {} : await readBody(req);
+      const out = await dispatch(league, table, { method: req.method, pathname, body, token }, LeagueError);
+      return send(req, res, 200, out);
     } catch (e) {
       if (!(e instanceof LeagueError)) console.error(e);
       send(req, res, e.status || 500, { error: e instanceof LeagueError ? e.message : 'Server error' });

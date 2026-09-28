@@ -6,12 +6,39 @@ by default) a full 48-minute game is simulated **possession by possession**, wit
 foul-outs, fatigue, substitutions, overtime (2OT, 3OT…), hot nights and cold nights. It runs over an
 82-game season, followed by playoffs.
 
+**Play it now:** https://kierbob.github.io/fantasyleauge/ (the GitHub Pages version, see below)
+
 No dependencies: just Node.js 18+.
 
 ```bash
-npm start            # http://localhost:3000
-npm test             # engine + league test suite
+npm start            # full online version (server) at http://localhost:3000
+npm test             # engine + league + Pages build tests
+npm run build:pages  # rebuild the GitHub Pages version into docs/
 ```
+
+## Play on your phone (GitHub Pages)
+
+The `docs/` folder is a fully static build of the game. The whole league, draft, game engine and every box
+score run **inside the browser** and are saved on that device (IndexedDB). No server is needed.
+
+- **Install it like an app (iPhone):** open the link in **Safari**, tap **Share → Add to Home Screen**. It
+  launches fullscreen with its own icon and works offline. (Android/Chrome: menu → *Install app*.)
+- **You vs. your friend on one device:** create the league, then tap **👥** (top right) to hand the phone over.
+  Your friend joins with the invite code, and after that you both just tap 👥 and pick your name to switch. When
+  it's the other person's draft pick, the draft room shows a "Hand the phone to…" button. Trade offers and
+  results wait in each manager's 🔔 notifications.
+- **Game days:** they're simulated on schedule while the app is open. If it was closed, every missed game day is
+  played the moment you open it again, so the hourly schedule still holds.
+- The league lives only on that device/browser. If you remove the home-screen app or clear Safari's website data,
+  the league goes with it. The commissioner can erase it from the League page to start over.
+- If each of you wants to play **from your own phone**, run the Node server version instead (see "Hosting the
+  online version" below). Both versions share the exact same engine code.
+
+### Turning on GitHub Pages (one time)
+
+Repo **Settings → Pages → Build and deployment**: *Source* = **Deploy from a branch**, pick the branch that has
+the `docs/` folder and the folder **`/docs`**, then Save. After a minute the game is live at
+`https://<user>.github.io/<repo>/`. When you change the code, run `npm run build:pages` and commit `docs/`.
 
 ## How a league works
 
@@ -81,7 +108,7 @@ npm run import-stats -- ~/Downloads/per_game.csv
 
 Players are matched by name, so an existing league keeps its rosters. Restart the server afterwards.
 
-## Playing with a friend who isn't on your Wi-Fi
+## Hosting the online version (each player on their own device)
 
 The server is one Node process that keeps its state in `data/save/` (set `DATA_DIR` to move it, and `PORT` to
 change the port). Options:
@@ -102,8 +129,11 @@ server/
   league.js     accounts, draft, schedule, game days, stats, injuries, trades, FA, CPU GMs, playoffs, notifications
   schedule.js   balanced round-robin (every team plays every game day)
   store.js      JSON persistence (league.json + one file per game with box score & play-by-play)
+  routes.js     API routes, shared by the server and the in-browser build
   index.js      zero-dependency HTTP API + Server-Sent Events + static files
-public/         single-page app (vanilla JS/CSS)
-scripts/        stats importer
+public/         single-page app (vanilla JS/CSS), PWA manifest + icons
+pages/local.js  in-browser runtime for GitHub Pages (answers /api calls locally, IndexedDB storage)
+docs/           generated GitHub Pages build (npm run build:pages)
+scripts/        stats importer, Pages build, icon generator
 test/           node:test suites
 ```

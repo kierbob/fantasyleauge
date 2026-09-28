@@ -182,16 +182,31 @@ function buildPool(players) {
   const byDef = [...all].sort((x, y) => x.r.defense - y.r.defense);
   byDef.forEach((p, i) => { p.r.defPct = all.length > 1 ? i / (all.length - 1) : 0.5; });
   for (const p of all) {
+    // Value = how good he is, not just how much he played:
+    //  - game score per game, leaning toward per-36 production for real rotation minutes
+    //  - efficient scoring, shot creation (points/assists per 36) and defense on top
     const gs = gameScore(p);
-    // Value: per-game production, nudged by efficiency per minute and age curve.
-    const perMin = gs / Math.max(p.mp, 8);
-    const ageAdj = p.age <= 24 ? 1.03 : p.age >= 34 ? 0.93 : p.age >= 31 ? 0.97 : 1;
-    const reb = (p.orb + p.drb) / Math.max(p.mp, 8) * 36;
-    p.value = Math.max(0.5, (gs * 0.75 + perMin * 36 * 0.25 + (p.r.defPct - 0.5) * 4 + (reb - 6) * 0.25) * ageAdj);
+    const m36 = 36 / Math.max(p.mp, 8);
+    const trust = clamp((p.mp - 14) / 16, 0, 1);
+    const talent = gs + (gs * m36 - gs) * trust * 0.6;
+    const ts = p.pts / (2 * (p.fga + 0.44 * p.fta) || 1);
+    const efficiency = (ts - 0.575) * p.pts * 0.35;
+    const defense = (p.r.defPct - 0.5) * 3 + (p.def ? (p.def - 3) * 0.9 : 0);
+    const creation = (p.pts * m36 - 17) * 0.3 + (p.ast * m36 - 4) * 0.2;
+    p.value = Math.max(0.5, talent + efficiency + defense + creation);
   }
-  const byVal = [...all].sort((x, y) => y.value - x.value);
-  const top = byVal[0] ? byVal[0].value : 1;
-  for (const p of all) p.ovr = Math.round(clamp(45 + (p.value / top) * 54, 40, 99));
+  // OVR on a 2K-style curve by rank: MVPs ~97-98, All-NBA 93-95, All-Stars ~89-92,
+  // good starters mid-80s, rotation players 70s.
+  const anchors = [[1, 98], [3, 97], [6, 95], [12, 93], [25, 89], [50, 84], [100, 78], [150, 73], [250, 67], [450, 58]];
+  const ovrAt = (rank) => {
+    for (let i = 1; i < anchors.length; i++) {
+      const [r0, o0] = anchors[i - 1];
+      const [r1, o1] = anchors[i];
+      if (rank <= r1) return o0 + ((o1 - o0) * (rank - r0)) / (r1 - r0);
+    }
+    return 55;
+  };
+  [...all].sort((x, y) => y.value - x.value).forEach((p, i) => { p.ovr = Math.round(ovrAt(i + 1)); });
   return pool;
 }
 
