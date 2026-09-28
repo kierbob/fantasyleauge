@@ -173,3 +173,21 @@ test('manual lineups and matchups are validated', () => {
   assert.strictEqual(plan.doubleTeam, bob.roster[1]);
   assert.throws(() => league.setMatchups(alice, bob.id, { assign: { [bob.roster[0]]: bob.roster[1] } }), /not on your roster/);
 });
+
+test('a rejected setup form does not leave a half-made league behind', () => {
+  const league = new League({ store: null, pool, rng: mulberry32(5) });
+  assert.throws(() => league.setup({ leagueName: 'Hoops', teamName: 'Clutch City', ownerName: 'K', password: 'secret' }), /at least 2 characters/);
+  assert.strictEqual(league.exists(), false);
+  assert.deepStrictEqual(league.summary(null), { exists: false });
+  const s = league.setup({ leagueName: 'Hoops', teamName: 'Clutch City', ownerName: 'Kier', password: 'secret' });
+  assert.ok(league.sessionTeam(s.token));
+  assert.throws(() => league.setup({ leagueName: 'Hoops', teamName: 'Other', ownerName: 'Someone', password: 'secret' }), /already exists/);
+});
+
+test('a saved league from an unfinished setup is ignored on load', () => {
+  const broken = { teams: [], commissioner: null, players: {} };
+  const league = new League({ store: { load: () => broken, save() {}, saveNow() {} }, pool });
+  assert.strictEqual(league.exists(), false);
+  league.setup({ leagueName: 'Hoops', teamName: 'Clutch City', ownerName: 'Kier', password: 'secret' });
+  assert.ok(league.exists());
+});
