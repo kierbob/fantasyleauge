@@ -195,11 +195,19 @@
   // ---------- rendering ----------
 
   function render() {
+    try {
+      $quit.hidden = state.phase === 'setup';
+      if (state.phase === 'setup') $app.innerHTML = renderSetup();
+      else if (state.phase === 'reveal') $app.innerHTML = renderReveal();
+      else $app.innerHTML = renderTeams() + renderCard() + (state.phase === 'place' ? renderPlace() : renderAuction());
+    } catch (e) {
+      // A saved game this version can't draw (e.g. from an older version): start over instead of a blank page.
+      console.error(e);
+      state = setupState(['Player 1', 'Player 2'], 20);
+      $quit.hidden = true;
+      $app.innerHTML = renderSetup();
+    }
     save();
-    $quit.hidden = state.phase === 'setup';
-    if (state.phase === 'setup') $app.innerHTML = renderSetup();
-    else if (state.phase === 'reveal') $app.innerHTML = renderReveal();
-    else $app.innerHTML = renderTeams() + renderCard() + (state.phase === 'place' ? renderPlace() : renderAuction());
   }
 
   function renderSetup() {
