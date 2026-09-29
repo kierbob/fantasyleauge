@@ -2,230 +2,413 @@
   'use strict';
 
   var POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
-  var SLOTS_PER_POSITION = 2;
-  var TOTAL = POSITIONS.length * SLOTS_PER_POSITION;
-  var STORAGE_KEY = 'guess-my-ten:roster';
-  var MAX_RESULTS = 40;
+  var STORAGE_KEY = 'blind-bid:game';
+  var PLAYERS = window.PLAYERS || [];
 
-  // window.NBA_PLAYERS rows are [nba id, full name, active (1/0)]
-  var players = (window.NBA_PLAYERS || []).map(function (p) {
-    return { id: p[0], name: p[1], active: p[2] === 1, key: normalize(p[1]) };
-  });
-  var byId = {};
-  players.forEach(function (p) { byId[p.id] = p; });
+  var $app = document.getElementById('app');
+  var $quit = document.getElementById('quit');
+  var $toast = document.getElementById('toast');
 
-  var roster = load();
-  var activeSlot = null;
+  var state = load() || setupState(['Player 1', 'Player 2'], 20);
+  var bidAmount = 1; // the bid stepper's value; not saved
+  var lastCardShown = null;
+  var toastTimer = null;
 
-  var $roster = document.getElementById('roster');
-  var $count = document.getElementById('count');
-  var $picker = document.getElementById('picker');
-  var $pickerSlot = document.getElementById('picker-slot');
-  var $search = document.getElementById('search');
-  var $activeOnly = document.getElementById('active-only');
-  var $results = document.getElementById('results');
+  // ---------- helpers ----------
 
-  function normalize(s) {
-    return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.'’]/g, '').toLowerCase();
+  function setupState(names, budget) {
+    return { phase: 'setup', names: names, budget: budget };
   }
-
-  function slotId(pos, i) { return pos + '-' + i; }
 
   function load() {
     try {
-      var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-      return saved && typeof saved === 'object' ? saved : {};
+      var s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      return s && s.phase ? s : null;
     } catch (e) {
-      return {};
+      return null;
     }
   }
 
   function save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(roster)); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
   }
 
-  function headshot(id) {
-    return 'https://cdn.nba.com/headshots/nba/latest/260x190/' + id + '.png';
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  function shuffle(list) {
+    for (var i = list.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    }
+    return list;
+  }
+
+  function toast(msg) {
+    $toast.textContent = msg;
+    $toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { $toast.classList.remove('show'); }, 2600);
   }
 
   function initials(name) {
     return name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 3).toUpperCase();
   }
 
-  function avatar(player, className) {
-    var wrap = document.createElement('div');
-    wrap.className = className;
-    wrap.textContent = initials(player.name);
-    var img = new Image();
-    img.alt = '';
-    img.loading = 'lazy';
-    img.onload = function () { wrap.textContent = ''; wrap.appendChild(img); };
-    img.src = headshot(player.id);
-    return wrap;
+  function headshot(p) {
+    return '<div class="face"><span>' + esc(initials(p.name)) + '</span>' +
+      '<img src="https://cdn.nba.com/headshots/nba/latest/260x190/' + p.id + '.png" alt="" onerror="this.remove()"></div>';
   }
 
-  function render() {
-    $roster.innerHTML = '';
-    var filled = 0;
+  function score(p) { return p.ppg + p.rpg + p.apg; }
 
-    POSITIONS.forEach(function (pos) {
-      var row = document.createElement('section');
-      row.className = 'pos-row';
+  // ---------- rules ----------
 
-      var label = document.createElement('div');
-      label.className = 'pos-label';
-      label.textContent = pos;
-      row.appendChild(label);
-
-      for (var i = 0; i < SLOTS_PER_POSITION; i++) {
-        var id = slotId(pos, i);
-        var player = byId[roster[id]];
-        if (player) filled++;
-        row.appendChild(player ? filledSlot(id, player) : emptySlot(id, pos));
-      }
-      $roster.appendChild(row);
-    });
-
-    $count.textContent = filled + ' / ' + TOTAL;
-    $count.classList.toggle('done', filled === TOTAL);
+  function openSlots(t) {
+    var slots = state.teams[t].slots;
+    return POSITIONS.filter(function (pos) { return !slots[pos]; });
   }
 
-  function emptySlot(id, pos) {
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'slot empty';
-    btn.setAttribute('aria-label', 'Add ' + pos);
-    btn.innerHTML = '<span class="plus">+</span>';
-    btn.addEventListener('click', function () { openPicker(id); });
-    return btn;
-  }
+  function isFull(t) { return openSlots(t).length === 0; }
 
-  function filledSlot(id, player) {
-    var card = document.createElement('div');
-    card.className = 'slot filled';
+  // Every open slot needs at least $1, so you can't spend money reserved for the rest of your team.
+  function maxBid(t) { return state.teams[t].money - (openSlots(t).length - 1); }
 
-    var pick = document.createElement('button');
-    pick.type = 'button';
-    pick.className = 'slot-body';
-    pick.title = 'Change player';
-    pick.appendChild(avatar(player, 'slot-img'));
-    var name = document.createElement('div');
-    name.className = 'slot-name';
-    name.textContent = player.name;
-    pick.appendChild(name);
-    pick.addEventListener('click', function () { openPicker(id); });
+  function makeHint(p) {
+    var types = ['jersey', 'fact', 'stat'];
+    if (p.high) types.push('high');
+    var type = pick(types);
 
-    var remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'remove';
-    remove.setAttribute('aria-label', 'Remove ' + player.name);
-    remove.textContent = '✕';
-    remove.addEventListener('click', function () {
-      delete roster[id];
-      save();
-      render();
-    });
-
-    card.appendChild(pick);
-    card.appendChild(remove);
-    return card;
-  }
-
-  function openPicker(id) {
-    activeSlot = id;
-    var parts = id.split('-');
-    $pickerSlot.textContent = parts[0] + (Number(parts[1]) === 0 ? ' · Starter' : ' · Bench');
-    $search.value = '';
-    renderResults();
-    $picker.showModal();
-    $search.focus();
-  }
-
-  function search(query) {
-    var tokens = normalize(query).split(/\s+/).filter(Boolean);
-    var activeOnly = $activeOnly.checked;
-    var out = [];
-    for (var i = 0; i < players.length; i++) {
-      var p = players[i];
-      if (activeOnly && !p.active) continue;
-      if (tokens.every(function (t) { return p.key.indexOf(t) !== -1; })) out.push(p);
+    if (type === 'jersey') {
+      var nums = p.nums.map(function (n) { return '#' + n; }).join(' · ');
+      return { label: p.nums.length > 1 ? 'Jersey numbers' : 'Jersey number', big: nums,
+        small: p.nums.length > 1 ? 'wore all of these' : '', short: nums };
     }
-    if (!tokens.length) return out.filter(function (p) { return p.active; }).slice(0, MAX_RESULTS);
-
-    var q = tokens.join(' ');
-    function score(p) {
-      var s = 0;
-      if (p.key === q) s += 100;
-      if (p.key.indexOf(q) === 0) s += 40;
-      if (p.key.split(' ').some(function (w) { return w.indexOf(tokens[0]) === 0; })) s += 20;
-      if (p.active) s += 30;
-      return s;
+    if (type === 'high') {
+      return { label: 'Career high', big: String(p.high), small: 'points in one game', short: p.high + '-pt high' };
     }
-    out.sort(function (a, b) { return score(b) - score(a) || a.name.localeCompare(b.name); });
-    return out.slice(0, MAX_RESULTS);
+    if (type === 'stat') {
+      var s = pick([['ppg', 'points', 'PPG'], ['rpg', 'rebounds', 'RPG'], ['apg', 'assists', 'APG']]);
+      var val = p[s[0]].toFixed(1);
+      return { label: 'Career average', big: val, small: s[1] + ' per game', short: val + ' ' + s[2] };
+    }
+    var fact = pick(p.facts);
+    return { label: 'Fact', big: '', small: fact, short: fact };
   }
 
-  function renderResults() {
-    var list = search($search.value);
-    var taken = {};
-    Object.keys(roster).forEach(function (k) { if (k !== activeSlot) taken[roster[k]] = true; });
+  function startGame(names, budget) {
+    state = {
+      phase: 'auction',
+      names: names,
+      budget: budget,
+      teams: names.map(function (name) {
+        var slots = {};
+        POSITIONS.forEach(function (pos) { slots[pos] = null; });
+        return { name: name, money: budget, slots: slots };
+      }),
+      deck: shuffle(PLAYERS.map(function (_, i) { return i; })),
+      skipped: [],
+      round: 0,
+      card: null,
+      won: null,
+      revealed: {}
+    };
+    nextCard();
+  }
 
-    $results.innerHTML = '';
-    if (!list.length) {
-      var none = document.createElement('li');
-      none.className = 'no-results';
-      none.textContent = 'No players found';
-      $results.appendChild(none);
+  function nextCard() {
+    if (isFull(0) && isFull(1)) {
+      state.phase = 'reveal';
+      state.card = null;
       return;
     }
+    if (!state.deck.length) {
+      state.deck = shuffle(state.skipped.map(function (s) { return s.p; }));
+      state.skipped = [];
+    }
+    var p = state.deck.pop();
+    var first = state.round % 2; // who gets asked first alternates every card
+    if (isFull(first)) first = 1 - first;
+    state.card = { p: p, hint: makeHint(PLAYERS[p]), bid: 0, leader: null, toAct: first, acted: [false, false] };
+    state.phase = 'auction';
+    bidAmount = 1;
+  }
 
-    list.forEach(function (p) {
-      var li = document.createElement('li');
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'result';
-      btn.disabled = !!taken[p.id];
-      btn.appendChild(avatar(p, 'result-img'));
+  function bid(amount) {
+    var c = state.card;
+    var t = c.toAct;
+    var other = 1 - t;
+    if (amount <= c.bid || amount > maxBid(t)) return;
+    c.bid = amount;
+    c.leader = t;
+    c.acted[t] = true;
+    if (isFull(other)) return win(t, '');
+    if (maxBid(other) <= c.bid) {
+      return win(t, state.teams[other].name + " can't go higher than $" + maxBid(other) + '.');
+    }
+    c.toAct = other;
+    bidAmount = c.bid + 1;
+  }
 
-      var text = document.createElement('div');
-      text.className = 'result-text';
-      var name = document.createElement('div');
-      name.className = 'result-name';
-      name.textContent = p.name;
-      var meta = document.createElement('div');
-      meta.className = 'result-meta';
-      meta.textContent = taken[p.id] ? 'Already on your team' : (p.active ? 'Current' : 'Former');
-      text.appendChild(name);
-      text.appendChild(meta);
-      btn.appendChild(text);
+  function pass() {
+    var c = state.card;
+    var t = c.toAct;
+    var other = 1 - t;
+    c.acted[t] = true;
+    if (c.leader !== null) return win(c.leader, '');
+    if (!isFull(other) && !c.acted[other]) {
+      c.toAct = other;
+      bidAmount = 1;
+      return;
+    }
+    state.skipped.push({ p: c.p, hint: c.hint });
+    state.round++;
+    toast('Nobody wanted him. Next mystery player!');
+    nextCard();
+  }
 
-      btn.addEventListener('click', function () {
-        roster[activeSlot] = p.id;
-        save();
-        render();
-        $picker.close();
+  function win(t, note) {
+    var c = state.card;
+    state.teams[t].money -= c.bid;
+    state.won = { team: t, p: c.p, hint: c.hint, price: c.bid, note: note };
+    state.phase = 'place';
+    var open = openSlots(t);
+    if (open.length === 1) {
+      toast('Sold to ' + state.teams[t].name + ' for $' + c.bid + ' → ' + open[0]);
+      place(open[0]);
+    }
+  }
+
+  function place(pos) {
+    var w = state.won;
+    state.teams[w.team].slots[pos] = { p: w.p, hint: w.hint, price: w.price };
+    state.won = null;
+    state.round++;
+    nextCard();
+  }
+
+  // ---------- rendering ----------
+
+  function render() {
+    save();
+    $quit.hidden = state.phase === 'setup';
+    if (state.phase === 'setup') $app.innerHTML = renderSetup();
+    else if (state.phase === 'reveal') $app.innerHTML = renderReveal();
+    else $app.innerHTML = renderTeams() + renderCard() + (state.phase === 'place' ? renderPlace() : renderAuction());
+  }
+
+  function renderSetup() {
+    return '<section class="panel setup">' +
+      '<h2>Blind draft auction</h2>' +
+      '<ul class="rules">' +
+        '<li>You each get <b>$' + state.budget + '</b> to build a 5-man team: PG, SG, SF, PF, C.</li>' +
+        '<li>A mystery player pops up with one hint: a jersey number, a fact, a stat or a career high.</li>' +
+        '<li>Take turns bidding. Pass and the other person can take him. Highest bid wins.</li>' +
+        '<li>Nobody finds out who they got until both teams are full.</li>' +
+      '</ul>' +
+      '<label class="field">Player 1<input id="name0" maxlength="16" value="' + esc(state.names[0]) + '"></label>' +
+      '<label class="field">Player 2<input id="name1" maxlength="16" value="' + esc(state.names[1]) + '"></label>' +
+      '<div class="field">Budget each' +
+        '<div class="stepper">' +
+          '<button type="button" data-action="budget" data-step="-5" aria-label="Less">−</button>' +
+          '<span class="amount">$' + state.budget + '</span>' +
+          '<button type="button" data-action="budget" data-step="5" aria-label="More">+</button>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="primary big" data-action="start">Start</button>' +
+    '</section>';
+  }
+
+  function renderTeams() {
+    var acting = state.phase === 'auction' ? state.card.toAct : state.won.team;
+    return '<section class="teams">' + state.teams.map(function (team, t) {
+      return '<div class="team team-' + t + (t === acting ? ' acting' : '') + '">' +
+        '<div class="team-head"><span class="team-name">' + esc(team.name) + '</span>' +
+        '<span class="money">$' + team.money + '</span></div>' +
+        POSITIONS.map(function (pos) {
+          var s = team.slots[pos];
+          return '<div class="mini-slot' + (s ? ' filled' : '') + '"><span class="mini-pos">' + pos + '</span>' +
+            (s ? '<span class="mini-hint" title="' + esc(s.hint.short) + '">' + esc(s.hint.short) + '</span>' +
+                 '<span class="mini-price">$' + s.price + '</span>'
+               : '<span class="mini-empty">empty</span>') +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }).join('') + '</section>';
+  }
+
+  function renderCard() {
+    var c = state.phase === 'place' ? state.won : state.card;
+    var h = c.hint;
+    var isNew = lastCardShown !== state.round;
+    lastCardShown = state.round;
+    return '<section class="mystery' + (isNew ? ' pop' : '') + '">' +
+      '<div class="mystery-top"><span class="chip">' + PLAYERS[c.p].pos + '</span>' +
+      '<span class="mystery-no">Mystery player #' + (state.round + 1) + '</span></div>' +
+      '<div class="silhouette">?</div>' +
+      '<div class="hint-label">' + esc(h.label) + '</div>' +
+      (h.big ? '<div class="hint-big">' + esc(h.big) + '</div>' : '') +
+      (h.small ? '<div class="hint-small' + (h.big ? '' : ' fact') + '">' + esc(h.small) + '</div>' : '') +
+    '</section>';
+  }
+
+  function renderAuction() {
+    var c = state.card;
+    var t = c.toAct;
+    var team = state.teams[t];
+    var other = state.teams[1 - t];
+    var solo = isFull(1 - t);
+    var min = c.bid + 1;
+    var max = maxBid(t);
+    bidAmount = Math.min(Math.max(bidAmount, min), max);
+
+    var status;
+    if (solo) status = esc(other.name) + "'s team is full. Take him for $1 or pass.";
+    else if (c.leader === null) status = c.acted[1 - t] ? esc(other.name) + ' passed. No bids yet.' : 'No bids yet.';
+    else status = 'Current bid: <b>$' + c.bid + '</b> by ' + esc(state.teams[c.leader].name);
+
+    var controls = solo
+      ? '<div class="actions"><button type="button" class="ghost big" data-action="pass">Pass</button>' +
+        '<button type="button" class="primary big" data-action="bid" data-amount="1">Take for $1</button></div>'
+      : '<div class="stepper">' +
+          '<button type="button" data-action="step" data-step="-1"' + (bidAmount <= min ? ' disabled' : '') + ' aria-label="Lower">−</button>' +
+          '<span class="amount">$' + bidAmount + '</span>' +
+          '<button type="button" data-action="step" data-step="1"' + (bidAmount >= max ? ' disabled' : '') + ' aria-label="Higher">+</button>' +
+          '<button type="button" class="ghost max" data-action="max">Max $' + max + '</button>' +
+        '</div>' +
+        '<div class="actions"><button type="button" class="ghost big" data-action="pass">Pass</button>' +
+        '<button type="button" class="primary big" data-action="bid" data-amount="' + bidAmount + '">Bid $' + bidAmount + '</button></div>';
+
+    return '<section class="panel turn team-' + t + '">' +
+      '<div class="turn-who">' + esc(team.name) + ', your move</div>' +
+      '<div class="turn-status">' + status + '</div>' +
+      controls +
+    '</section>';
+  }
+
+  function renderPlace() {
+    var w = state.won;
+    var team = state.teams[w.team];
+    var natural = PLAYERS[w.p].pos;
+    return '<section class="panel turn team-' + w.team + '">' +
+      '<div class="turn-who">Sold to ' + esc(team.name) + ' for $' + w.price + '!</div>' +
+      (w.note ? '<div class="turn-status">' + esc(w.note) + '</div>' : '') +
+      '<div class="turn-status">Pick a spot for him:</div>' +
+      '<div class="place-grid">' + openSlots(w.team).map(function (pos) {
+        return '<button type="button" class="place' + (pos === natural ? ' natural' : '') + '" data-action="place" data-pos="' + pos + '">' +
+          pos + (pos === natural ? '<small>his position</small>' : '') + '</button>';
+      }).join('') + '</div>' +
+    '</section>';
+  }
+
+  function renderReveal() {
+    var totalSlots = POSITIONS.length * 2;
+    var shown = Object.keys(state.revealed).length;
+    var allShown = shown >= totalSlots;
+    var totals = state.teams.map(function (team) {
+      return POSITIONS.reduce(function (sum, pos) { return sum + score(PLAYERS[team.slots[pos].p]); }, 0);
+    });
+
+    var html = '<section class="reveal">' +
+      '<h2>' + (allShown ? 'Final teams' : 'Both teams are full. Time to reveal!') + '</h2>' +
+      (allShown ? '' : '<p class="muted">Tap a card to flip it.</p>') +
+      '<div class="reveal-teams">' + state.teams.map(function (team, t) {
+        return '<div class="reveal-team team-' + t + '">' +
+          '<div class="team-head"><span class="team-name">' + esc(team.name) + '</span>' +
+          '<span class="money">$' + team.money + ' left</span></div>' +
+          POSITIONS.map(function (pos) {
+            var key = t + '-' + pos;
+            var s = team.slots[pos];
+            var p = PLAYERS[s.p];
+            var open = !!state.revealed[key];
+            return '<button type="button" class="flip' + (open ? ' open' : '') + '" data-action="flip" data-key="' + key + '">' +
+              '<div class="flip-inner">' +
+                '<div class="flip-front"><span class="mini-pos">' + pos + '</span><span class="q">?</span>' +
+                  '<span class="flip-hint">' + esc(s.hint.short) + '</span><span class="mini-price">$' + s.price + '</span></div>' +
+                '<div class="flip-back"><span class="mini-pos">' + pos + '</span>' + headshot(p) +
+                  '<span class="flip-name">' + esc(p.name) + '<small>' + p.ppg.toFixed(1) + ' pts · ' + p.rpg.toFixed(1) + ' reb · ' +
+                  p.apg.toFixed(1) + ' ast</small></span><span class="mini-price">$' + s.price + '</span></div>' +
+              '</div></button>';
+          }).join('') +
+          (allShown ? '<div class="team-score">Score <b>' + totals[t].toFixed(1) + '</b></div>' : '') +
+        '</div>';
+      }).join('') + '</div>';
+
+    if (!allShown) {
+      html += '<button type="button" class="ghost big wide" data-action="reveal-all">Reveal everyone</button>';
+    } else {
+      var diff = Math.abs(totals[0] - totals[1]);
+      var winner = totals[0] === totals[1] ? null : (totals[0] > totals[1] ? 0 : 1);
+      html += '<div class="panel result' + (winner === null ? '' : ' team-' + winner) + '">' +
+        '<div class="result-title">' + (winner === null ? "It's a tie!" : '🏆 ' + esc(state.teams[winner].name) + ' wins by ' + diff.toFixed(1)) + '</div>' +
+        '<div class="muted">Score = career points + rebounds + assists per game, added up for all 5 players. Disagree? Argue it out.</div>' +
+      '</div>';
+      if (state.skipped.length) {
+        html += '<div class="panel skipped"><div class="skipped-title">Players nobody bid on</div>' +
+          state.skipped.map(function (s) {
+            return '<div class="skipped-row"><span>' + esc(PLAYERS[s.p].name) + '</span><span class="muted">' + esc(s.hint.short) + '</span></div>';
+          }).join('') + '</div>';
+      }
+      html += '<div class="actions">' +
+        '<button type="button" class="ghost big" data-action="new">New players</button>' +
+        '<button type="button" class="primary big" data-action="rematch">Rematch</button></div>';
+    }
+    return html + '</section>';
+  }
+
+  // ---------- events ----------
+
+  $app.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn || btn.disabled) return;
+    var action = btn.dataset.action;
+
+    if (action === 'budget') {
+      readNames();
+      state.budget = Math.min(100, Math.max(5, state.budget + Number(btn.dataset.step)));
+    } else if (action === 'start') {
+      readNames();
+      startGame(state.names, state.budget);
+    } else if (action === 'step') {
+      bidAmount += Number(btn.dataset.step);
+    } else if (action === 'max') {
+      bidAmount = maxBid(state.card.toAct);
+    } else if (action === 'bid') {
+      bid(Number(btn.dataset.amount));
+    } else if (action === 'pass') {
+      pass();
+    } else if (action === 'place') {
+      place(btn.dataset.pos);
+    } else if (action === 'flip') {
+      state.revealed[btn.dataset.key] = true;
+    } else if (action === 'reveal-all') {
+      state.teams.forEach(function (_, t) {
+        POSITIONS.forEach(function (pos) { state.revealed[t + '-' + pos] = true; });
       });
-      li.appendChild(btn);
-      $results.appendChild(li);
+    } else if (action === 'rematch') {
+      startGame(state.names, state.budget);
+    } else if (action === 'new') {
+      state = setupState(state.names, state.budget);
+    }
+    render();
+  });
+
+  function readNames() {
+    [0, 1].forEach(function (i) {
+      var input = document.getElementById('name' + i);
+      var v = input && input.value.trim();
+      state.names[i] = v || 'Player ' + (i + 1);
     });
   }
 
-  $search.addEventListener('input', renderResults);
-  $activeOnly.addEventListener('change', renderResults);
-  $search.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    var first = $results.querySelector('.result:not([disabled])');
-    if (first) first.click();
-  });
-  // Close when tapping the backdrop
-  $picker.addEventListener('click', function (e) { if (e.target === $picker) $picker.close(); });
-  $picker.addEventListener('close', function () { activeSlot = null; });
-
-  document.getElementById('reset').addEventListener('click', function () {
-    if (!Object.keys(roster).length || !confirm('Clear all 10 slots?')) return;
-    roster = {};
-    save();
+  $quit.addEventListener('click', function () {
+    if (!confirm('Quit this game? Both teams will be lost.')) return;
+    state = setupState(state.names, state.budget);
     render();
   });
 

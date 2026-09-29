@@ -3,33 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Guess My Ten</title>
+  <title>Blind Bid</title>
   <meta name="theme-color" content="#101214">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="top">
-    <h1>🏀 Guess My Ten</h1>
-    <div class="top-right">
-      <span id="count" class="count">0 / 10</span>
-      <button id="reset" class="ghost" type="button">Clear</button>
-    </div>
+    <h1>🏀 Blind Bid</h1>
+    <button id="quit" class="ghost" type="button" hidden>Quit</button>
   </header>
 
-  <main id="roster" class="roster"></main>
-
-  <dialog id="picker" class="picker">
-    <form method="dialog" class="picker-head">
-      <div>
-        <div class="picker-title">Add player</div>
-        <div id="picker-slot" class="picker-slot"></div>
-      </div>
-      <button class="ghost close" value="cancel" aria-label="Close">✕</button>
-    </form>
-    <input id="search" class="search" type="search" placeholder="Search any NBA player…" autocomplete="off" spellcheck="false">
-    <label class="filter"><input id="active-only" type="checkbox"> Current players only</label>
-    <ul id="results" class="results"></ul>
-  </dialog>
+  <main id="app"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="players.js"></script>
   <script src="app.js"></script>
