@@ -48,8 +48,10 @@ V = {  # root, fifth, ninth, third (upper)
 WAVE = [(0, 0, 12), (1, 1, 5), (2, 2, 4), (4, 3, 8), (7, 2, 5), (9, 1, 3)]
 
 
-def wave(bar, chord, vel, low=False, muffled=False):
+def wave(bar, chord, vel, low=False, muffled=False, avoid=()):
     for e, idx, dur in WAVE:
+        if V[chord][idx] in avoid:
+            continue                     # the (lowered) melody already holds this key
         if muffled and idx == 3:
             continue                     # drop the bright upper note: "underwater"
         add(PIANO, bar * BAR + e, dur, V[chord][idx], vel + (4 if idx == 0 else 0) - (2 if e > 6 else 0)
@@ -101,9 +103,11 @@ SECTIONS = [
 MUFFLED = {0: 0.7, 1: 0.8, 16: 0.85, 17: 0.75}
 for bar, (chord, mel, mv, wv, padp, pv, lift) in enumerate(SECTIONS):
     muffled = bar in MUFFLED
-    wave(bar, chord, int(wv * MUFFLED.get(bar, 1)), low=lift, muffled=muffled)
+    octave = -12 if bar >= 16 else 0
+    wave(bar, chord, int(wv * MUFFLED.get(bar, 1)), low=lift, muffled=muffled,
+         avoid={p + octave for _, p, _ in mel})
     if mel:
-        melody(bar, mel, mv, double=lift, octave=-12 if bar >= 16 else 0)
+        melody(bar, mel, mv, double=lift, octave=octave)
     if padp:
         pad(bar, padp, pv)
 
