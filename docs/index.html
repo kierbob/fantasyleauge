@@ -3,39 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Fantasy Hoops</title>
-  <meta name="theme-color" content="#111315">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Hoops">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=251c3d9039fa">
+  <title>Guess My Ten</title>
+  <meta name="theme-color" content="#101214">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <a class="brand" href="#/">🏀 <span id="brand-name">Fantasy Hoops</span></a>
-      <nav id="nav" class="nav"></nav>
-      <div class="top-actions" id="top-actions"></div>
+  <header class="top">
+    <h1>🏀 Guess My Ten</h1>
+    <div class="top-right">
+      <span id="count" class="count">0 / 10</span>
+      <button id="reset" class="ghost" type="button">Clear</button>
     </div>
   </header>
-  <div id="ticker" class="ticker"></div>
-  <main id="app" class="container"><div class="loading">Loading…</div></main>
-  <div id="notif-panel" class="notif-panel hidden"></div>
-  <div id="toasts" class="toasts"></div>
-  <div id="modal" class="modal hidden"></div>
-  <script src="core.js?v=251c3d9039fa"></script>
-  <script src="local.js?v=251c3d9039fa"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      var hadController = !!navigator.serviceWorker.controller;
-      navigator.serviceWorker.register('sw.js').catch(function () {});
-      navigator.serviceWorker.addEventListener('controllerchange', function () { if (hadController) location.reload(); });
-    }
-  </script>
-  <script src="app.js?v=251c3d9039fa"></script>
+
+  <main id="roster" class="roster"></main>
+
+  <dialog id="picker" class="picker">
+    <form method="dialog" class="picker-head">
+      <div>
+        <div class="picker-title">Add player</div>
+        <div id="picker-slot" class="picker-slot"></div>
+      </div>
+      <button class="ghost close" value="cancel" aria-label="Close">✕</button>
+    </form>
+    <input id="search" class="search" type="search" placeholder="Search any NBA player…" autocomplete="off" spellcheck="false">
+    <label class="filter"><input id="active-only" type="checkbox"> Current players only</label>
+    <ul id="results" class="results"></ul>
+  </dialog>
+
+  <script src="players.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
