@@ -3,20 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Blind Bid</title>
+  <title>Hoop Games</title>
   <meta name="theme-color" content="#101214">
-  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header class="top">
-    <h1>🏀 Blind Bid</h1>
-    <button id="quit" class="ghost" type="button" hidden>Quit</button>
+    <h1>🏀 Hoop Games</h1>
   </header>
 
-  <main id="app"></main>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <script src="players.js?v=2"></script>
-  <script src="app.js?v=2"></script>
+  <main class="menu">
+    <a class="game-card team-0" href="blind-bid.html">
+      <span class="game-emoji">💰</span>
+      <span class="game-text">
+        <span class="game-title">Blind Bid</span>
+        <span class="game-desc">2 players, $20 each. Bid on mystery players from one hint and build the best starting 5.</span>
+      </span>
+    </a>
+    <a class="game-card team-1" href="statline.html">
+      <span class="game-emoji">📊</span>
+      <span class="game-text">
+        <span class="game-title">Guess the Stat Line</span>
+        <span class="game-desc">1 or 2 players. See a career stat line and pick the player from 4 choices.</span>
+      </span>
+    </a>
+  </main>
 </body>
 </html>
