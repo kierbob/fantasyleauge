@@ -48,16 +48,19 @@ V = {  # root, fifth, ninth, third (upper)
 WAVE = [(0, 0, 12), (1, 1, 5), (2, 2, 4), (4, 3, 8), (7, 2, 5), (9, 1, 3)]
 
 
-def wave(bar, chord, vel, low=False):
+def wave(bar, chord, vel, low=False, muffled=False):
     for e, idx, dur in WAVE:
+        if muffled and idx == 3:
+            continue                     # drop the bright upper note: "underwater"
         add(PIANO, bar * BAR + e, dur, V[chord][idx], vel + (4 if idx == 0 else 0) - (2 if e > 6 else 0)
             + random.randint(-2, 2))
     if low:
         add(PIANO, bar * BAR, BAR, V[chord][0] - 12, vel - 5)
 
 
-def melody(bar, phrase, vel, double=False):
+def melody(bar, phrase, vel, double=False, octave=0):
     for i, (e, pitch, dur) in enumerate(phrase):
+        pitch += octave
         v = vel + (3 if dur >= 6 else 0) - (4 if i == len(phrase) - 1 else 0) + random.randint(-2, 2)
         add(PIANO, bar * BAR + e, dur, pitch, v, legato=90)
         if double:
@@ -93,10 +96,14 @@ SECTIONS = [
     ("Dbm6",   [(6, 76, 6)], 25, 15, [56, 61, 64], 18, False),
     ("Abmaj9", [(0, 70, 12)], 22, 13, [56, 60, 63], 14, False),
 ]
+# Filter-free "underwater" trick written into the notes: bars 1-2 and 17-18 lose their bright
+# upper notes and play quieter; the last two melody phrases sink an octave (surface -> sink back).
+MUFFLED = {0: 0.7, 1: 0.8, 16: 0.85, 17: 0.75}
 for bar, (chord, mel, mv, wv, padp, pv, lift) in enumerate(SECTIONS):
-    wave(bar, chord, wv, low=lift)
+    muffled = bar in MUFFLED
+    wave(bar, chord, int(wv * MUFFLED.get(bar, 1)), low=lift, muffled=muffled)
     if mel:
-        melody(bar, mel, mv, double=lift)
+        melody(bar, mel, mv, double=lift, octave=-12 if bar >= 16 else 0)
     if padp:
         pad(bar, padp, pv)
 
