@@ -57,7 +57,15 @@ button:disabled { opacity: .35; cursor: default; }
   justify-content: space-between;
   padding: 18px 0 14px;
 }
-.top h1 { font-size: 1.35rem; margin: 0; }
+.top h1 { font-size: 1.35rem; margin: 0; display: flex; align-items: center; gap: 6px; }
+.back {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  padding: 0 6px 4px 0;
+}
+.back:hover { color: var(--text); }
 
 .panel {
   background: var(--panel);
@@ -289,6 +297,81 @@ button:disabled { opacity: .35; cursor: default; }
   max-width: calc(100vw - 32px);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Menu */
+.menu { max-width: 720px; margin: 0 auto; display: grid; gap: 12px; }
+.game-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--c);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform .15s, border-color .15s;
+}
+.game-card:hover { transform: translateY(-2px); border-color: var(--c); }
+.game-emoji { font-size: 2.2rem; }
+.game-text { display: flex; flex-direction: column; gap: 4px; }
+.game-title { font-size: 1.15rem; font-weight: 800; }
+.game-desc { color: var(--muted); font-size: .92rem; line-height: 1.4; }
+
+/* Segmented control */
+.segmented { display: flex; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.segmented button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+}
+.segmented button.on { background: var(--panel-2); color: var(--text); }
+
+/* Guess the Stat Line */
+.small { font-size: .8rem; }
+.sl-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+.sl-bar b { color: var(--text); }
+.statline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 14px; }
+.stat { display: flex; flex-direction: column; align-items: center; background: var(--panel-2); border-radius: 12px; padding: 12px 4px; }
+.stat-val { font-size: clamp(1.8rem, 8vw, 2.6rem); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-lbl { color: var(--muted); font-weight: 800; font-size: .75rem; letter-spacing: .1em; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.choice {
+  min-height: 60px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-weight: 700;
+  font-size: 1rem;
+  transition: border-color .15s, background .15s;
+}
+.choice:hover:not(:disabled) { border-color: var(--c); }
+.choice:disabled { cursor: default; opacity: 1; }
+.choice.right { background: rgba(62, 207, 142, .18); border-color: var(--good); }
+.choice.wrong { background: rgba(229, 72, 77, .18); border-color: #e5484d; }
+.choice.dim { opacity: .4; }
+.answer.is-right { border-top: 3px solid var(--good); }
+.answer.is-wrong { border-top: 3px solid #e5484d; }
+.answer-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.answer-verdict { font-weight: 900; font-size: 1.2rem; }
+.is-right .answer-verdict { color: var(--good); }
+.is-wrong .answer-verdict { color: #e5484d; }
+.answer-name { font-weight: 700; }
+.face.big-face { width: 76px; height: 56px; border-radius: 10px; font-size: .9rem; }
 
 @media (max-width: 560px) {
   .reveal-teams { grid-template-columns: 1fr; }
