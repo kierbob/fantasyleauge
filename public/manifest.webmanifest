@@ -1,0 +1,7 @@
+{
+  "id":"./", "name":"Courtside — Your Basketball Universe", "short_name":"Courtside",
+  "description":"Draft your team and watch an original basketball league unfold with friends.",
+  "start_url":"./", "scope":"./", "display":"standalone", "orientation":"portrait-primary",
+  "background_color":"#101211", "theme_color":"#101211",
+  "icons":[{"src":"icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},{"src":"icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]
+}

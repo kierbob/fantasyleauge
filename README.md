@@ -1,48 +1,82 @@
-# 🏀 Hoop Games
+# Courtside
 
-NBA party games for one phone.
+A browser-based basketball management game. Your imported NBA stats inform a custom possession engine; every game, box score, and league history is generated here. This is not a fantasy points calculator.
 
-**Play:** https://kierbob.github.io/fantasyleauge/
+**Uploading or publishing?** See [UPLOAD-TO-GITHUB.md](UPLOAD-TO-GITHUB.md). Source checks run automatically; Pages publishing waits until the online backend URL is configured.
 
-## Blind Bid
+## Run
 
-A two-player blind draft auction (like the TikTok game).
+Requires **Node.js 24.12+** and npm. No API keys or paid services.
 
-1. Enter both names. Each of you gets **$20** (adjustable) to build a 5-man team: PG, SG, SF, PF, C.
-2. A mystery player card pops up showing his position and **one hint**: a jersey number, a fact, a career
-   average, or a career high.
-3. One player is asked first (this alternates every card). Bid or pass, then the other player can top it or
-   pass. The bidding goes back and forth until someone passes, and the highest bid wins. If you both pass, the
-   player is skipped.
-4. The winner picks which open spot he goes in. You always have to keep at least $1 for each empty spot.
-5. When both teams are full, flip the cards to see who you actually got. The team with the higher score wins
-   (career points + rebounds + assists per game, added up for all 5 players). You also see who nobody bid on.
+```text
+npm install
+npm run dev
+```
 
-## Guess the Stat Line
+Open **http://127.0.0.1:5173**. Create a manager, choose a team, and create a solo or private multiplayer league. Open Game center to tip off. Solo games support pause and 1×/5×/20×/60× speed. “Play league day” runs all 15 matchups at 60× in solo mode. Private games run in real time. Rotation changes save explicitly; league progress saves automatically.
 
-You see a player's career points, rebounds and assists per game and pick who it is from 4 choices (two of the
-wrong answers play the same position). Play solo for a high score, or with 2 players taking turns. Choose 5, 10
-or 20 questions.
+```text
+npm test
+npm run build
+npm start
+```
 
-Both games save in the browser, so a refresh doesn't lose them.
+After building, `npm start` serves the app and API together on **http://127.0.0.1:3001**.
 
-## Files
+## Playing with friends
 
-Everything is in `docs/` (plain HTML/CSS/JS, no build step):
+Everyone must connect to **the same server**, create an account, and join using your invite code. This workspace is not publicly hosted. A GitHub Pages deployment alone cannot run the multiplayer server.
 
-- `players.js`: the 117 players and their hints (jersey numbers, career averages, career high, facts). Edit
-  this to add or change players. Stats were hand-entered and are approximate for active players.
-- `index.html`: the game menu
-- `blind-bid.html` / `blind-bid.js`: Blind Bid
-- `statline.html` / `statline.js`: Guess the Stat Line
-- `style.css`: the look, shared by every page
+For a trusted local network, build the app and start with `HOST=0.0.0.0` (PowerShell: `$env:HOST='0.0.0.0'; npm start`). Friends open the host computer’s LAN address on port 3001; the operating system firewall may require a rule. Use unique passwords. For Internet hosting, put the Node server behind HTTPS and keep its SQLite file on a persistent disk. Set `TRUST_PROXY=1` only behind a trusted HTTPS reverse proxy. `PORT`, `HOST`, and `DATABASE_PATH` are optional environment variables.
 
-When you change a file, bump the `?v=` number on the script and stylesheet links in the HTML pages so browsers
-don't keep an old cached copy.
+No paid service is introduced. Running on your own computer avoids a hosting subscription. A hosting provider must support an always-running Node 24 process, persistent disk, and long-lived SSE responses. Sleeping free hosts interrupt real-time play and the daily scheduler. No hosting provider or free-tier guarantee is assumed. Deployment and any provider costs should be reviewed before choosing hosting.
 
-`index.html` in the root just forwards to `docs/`.
+## Data and saves
 
-## GitHub Pages
+- `data/nbastats.json` is a byte-for-byte copy of your original file (SHA-256 `aa3af66cebf5235d7fce948bd2b3ab4e8b46ee0a75b38bdf5badf5a915d50784`). It is never edited by gameplay.
+- `.runtime/courtside.sqlite` stores users, hashed passwords, sessions, leagues, rotations, transactions, games, and PRNG state. Back up the database using SQLite’s backup tooling or stop the server before copying it. Never commit `.runtime/`.
+- Export league history from Simulation & data. Exports are for inspection; full restore uses a database backup, not a client-uploaded league state.
+- Latest usable historical season feeds player models. Samples under 600 total minutes blend with primary-position means computed from this JSON. The 249 players without usable historical stats receive labelled estimated abilities. All OVRs are game ratings.
+- Stats generated by the league remain separate from historical inputs. The UI identifies both sources. Shot locations, fouls, fatigue, pace, and strategy adjustments are simulation mechanics.
 
-Repo **Settings → Pages**: *Source* = **Deploy from a branch**, branch **main**, folder **`/docs`** (or `/`, which
-redirects to `docs/`).
+## League rules in this build
+
+Custom 58-day home-and-away round robin; one matchup per team per UTC day. Automatic tip-off at the selected UTC hour requires the server to stay online. After downtime, unfinished games resume and overdue matchups start in order. The commissioner may start today's multiplayer games early. Solo commissioners can start the next available matchup early.
+
+Four 12-minute quarters, five-minute overtime until a winner, five players on court, target rotations, fatigue and bench recovery, timeouts, personal fouls and a simplified team bonus. Players normally foul out at six; an emergency replacement rule retains five players if eligibility is exhausted. The engine approximates basketball, rather than reproducing every NBA rule exception. Its distribution tests check consistency and broad scoring sanity, not statistical calibration against unseen NBA data.
+
+Rotations use individual playing stints and bench-rest periods. Normal substitution windows change one player, at least 45 seconds apart, rather than replacing an entire unit. Minutes deficits, fatigue, early foul trouble, closing-game needs, and position coverage guide replacements. Normal rotations retain at least two designated starters when their combined targets support that workload; foul trouble can override this. Targets are approximate, especially with foul trouble or overtime. Individual stint history persists with saves; existing saved games initialize it automatically when resumed.
+
+Rosters have 8–20 players. Trades exchange 1–5 players each side. AI requires at least an 8% value improvement, comparable centerpiece value for stars, positional coverage, and valid roster sizes. Game value uses the same labelled game ratings; no external contract values. Pending offers are revalidated on acceptance and cancelled when involved players move. Roster moves are locked during live games; rotation edits affect subsequent substitutions.
+
+## Implemented and remaining
+
+Implemented: accounts, private invite codes, exclusive team claims, multiple independent persistent leagues, original possession simulations, shared live broadcasts, box scores, play-by-play, zone-based shot maps, timeouts, rotations, strategy, free agents, AI trade reviews, human trade offers, standings, and generated season statistics.
+
+Remaining: proactive AI trade offers and opponent scouting, multi-season rollover, development/aging, playoffs, production hosting, password recovery, email invitations, and production load testing. No real-world basketball facts are downloaded automatically.
+
+Architecture: React + TypeScript + Vite client; Node HTTP/SSE server; SQLite persistence; independent simulation and league rules under `shared/`. Clients cannot submit scores, results, or arbitrary league snapshots. Account cookies are HttpOnly and same-site; passwords use salted scrypt. Automated tests cover the actual dataset, rotations, schedule, trades, complete-game accounting, overtime, persistence, auth, ownership, and shared server state.
+
+## Fantasy draft leagues
+
+New leagues default to a 10-team fantasy draft. Managers name their own teams and join the private lobby by code. The commissioner chooses serpentine (snake) or fixed order and a 30/60/90/120-second pick timer, then starts the draft. The server randomly assigns all ten draft positions at that moment. Empty seats become AI managers. Every player in the original dataset is available exactly once. Fifteen rounds create 15-player rosters and a custom 18-day home-and-away season. AI evaluates performance and positional depth; expired human turns auto-pick. Draft picks and timers persist across server restarts. Lobby membership locks at draft start. Existing NBA-roster leagues remain available and unchanged.
+
+Timeouts are automatic for human and AI teams, based on opponent scoring runs, fatigue, and late-game situations, with a two-minute game-clock cooldown between automatic calls.
+
+Shot-chart makes and misses are tappable and keyboard-accessible. Markers show the player, result, distance, and shot value. Roster, draft, free-agent, box-score, and generated player-stat headers sort highest/lowest on repeated taps. Missing imported stats stay labelled and sort after supplied statistics.
+
+## Mobile app, GitHub Pages and notifications
+
+The mobile layout has a bottom navigation bar, phone-sized controls, sticky player-name columns, a notification inbox, and an installable web-app manifest with PNG icons. The service worker handles push notifications, opens the correct league when tapped, and displays a reconnect screen offline. It never caches private API responses or pretends live games work offline.
+
+For iPhone, add the site to the Home Screen and open that installed app before enabling notifications (iOS 16.4+). On supported Android / Samsung browsers, use Install app / Add to Home Screen and allow notifications. Delivery still depends on OS/browser permissions and network availability. Real-device delivery has not been verified in this workspace.
+
+GitHub Pages hosts only the frontend. The Node/SQLite server still needs an online HTTPS host with persistent storage; a sleeping host interrupts games, drafts and push. No paid host has been selected or purchased.
+
+1. Configure an online backend and set `CLIENT_ORIGIN` to your exact Pages origin, e.g. `https://YOUR-ACCOUNT.github.io` (no repository path).
+2. Set backend `PUBLIC_APP_URL` to the full installed frontend URL including repository path and trailing slash. Set `WEB_PUSH_SUBJECT` to a real `mailto:` contact or operator HTTPS URL. These values are also read from a local `.env` if present.
+3. The backend creates VAPID keys once and stores them privately in SQLite. Back up this database; do not publish keys or `.runtime/`. Push is disabled until the HTTPS URL and contact are configured.
+4. In your GitHub repository, set the Actions variable `VITE_API_URL` to the backend HTTPS origin. Choose GitHub Actions as the Pages source. The supplied workflow tests and builds the static client, then deploys `dist/`. It refuses to publish a disconnected frontend without a backend URL. No repository or remote deployment was created here.
+5. Accounts use an authorization header for a separate API origin, so this works without third-party cookies on phones. Server CORS accepts only configured origins. Never put a session token, private VAPID key, or database in a GitHub variable used by the frontend.
+
+The in-app inbox works immediately. Optional Web Push sends draft-start/your-turn/draft-complete, game-start/final, and trade-offer/status alerts. Notifications are deduplicated and stored per manager, and push subscriptions are bound to signed-in accounts. Invalid subscription endpoints are rejected; expired endpoints are removed. The Web Push transport is tested with a mocked push service; actual Apple/Google delivery requires deployment and a real device test.

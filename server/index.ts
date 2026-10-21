@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { buildCatalog } from '../shared/catalog.ts';
+import { createApp } from './app.ts';
+import { Store } from './store.ts';
+const catalog=buildCatalog(JSON.parse(readFileSync(resolve('data/nbastats.json'),'utf8')));
+const store=new Store(process.env.DATABASE_PATH ?? resolve('.runtime/courtside.sqlite'));
+const app=createApp(catalog,store);
+const host=process.env.HOST ?? '127.0.0.1', port=Number(process.env.PORT ?? 3001);
+app.server.listen(port,host,()=>console.log(`Courtside league server · http://${host}:${port} · ${catalog.players.size} players loaded`));
+for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{app.close();store.close();process.exit();});
